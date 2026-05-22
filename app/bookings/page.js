@@ -256,6 +256,17 @@ export default function BookingsPage() {
                         </button>
                       </div>
                     )}
+                    {/* 2. AKSI USER JIKA STATUS SUCCESS (SEJAJAR, DI LUAR BLOK PENDING) */}
+                    {booking.status === 'Success' && (
+                      <div className="flex flex-col sm:flex-row gap-3 mt-1 pt-4 border-t border-slate-100">
+                        <button
+                          onClick={() => router.push(`/bookings/${booking.id}/ticket`)}
+                          className="w-full sm:w-auto px-5 py-2.5 bg-[#0194f3] hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+                        >
+                          🎫 Lihat E-Tiket Resmi
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               )

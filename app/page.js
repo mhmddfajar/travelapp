@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import NotificationBell from '@/components/NotificationBell';
+
 
 // Ikon SVG per Kategori
 const categoryIcons = {
@@ -19,18 +21,34 @@ const categoryIcons = {
   ),
 }
 
-// Fallback ikon generik untuk kategori yang tidak dikenal
+const DUMMY_REVIEWS = {
+  1: [
+    { id: 1, name: "Andi Wijaya", rating: 5, comment: "Indah banget sunrisenya! Dingin parah tapi worth it. Sangat direkomendasikan!", date: "2 minggu lalu" },
+    { id: 2, name: "Siti Rahma", rating: 4, comment: "Pemandangannya juara, cuma pas ke sana agak ramai aja. Jasa jeep-nya ramah.", date: "1 bulan lalu" }
+  ],
+  2: [
+    { id: 3, name: "Budi Santoso", rating: 5, comment: "Tempat yang magis, megah banget Borobudur. Bersih dan tertata rapi.", date: "3 hari lalu" },
+    { id: 4, name: "Dewi Lestari", rating: 5, comment: "Keren sejarahnya, wajib sewa pemandu biar paham cerita reliefnya.", date: "3 minggu lalu" }
+  ],
+  default: [
+    { id: 99, name: "Traveler Asik", rating: 5, comment: "Tempatnya bagus banget, bersih, pelayanannya ramah. Mantap pokoknya!", date: "Baru saja" }
+  ]
+};
+
 const defaultCategoryIcon = (
   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
 )
 
 // Komponen Kartu Destinasi Traveloka-style
-function DestinationCard({ item, onBook }) {
+function DestinationCard({ item, onBook, onClick }) { 
   const [liked, setLiked] = useState(false)
   const dummyRating = '4.8'
 
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300 flex flex-col">
+   <div 
+      onClick={onClick} 
+      className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden cursor-pointer hover:shadow-md transition-all group"
+    >
       {/* Gambar */}
       <div className="relative h-44 sm:h-48 overflow-hidden">
         <img
@@ -75,7 +93,7 @@ function DestinationCard({ item, onBook }) {
             </p>
           </div>
           <button
-            onClick={() => onBook(item)}
+            onClick={(e) => { e.stopPropagation(); onBook(item); }}
             className="bg-[#0194f3] text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors shadow-sm cursor-pointer"
           >
             Pesan
@@ -95,6 +113,8 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
 
   // Modal Booking State
+  const [selectedDestination, setSelectedDestination] = useState(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedDest, setSelectedDest] = useState(null)
   const [travelDate, setTravelDate] = useState('')
@@ -175,7 +195,6 @@ export default function HomePage() {
     }
   }
 
-  // Get unique categories
   const categories = ['Semua', ...new Set(destinations.map(d => d.category).filter(Boolean))]
 
   if (loading) return (
@@ -190,8 +209,6 @@ export default function HomePage() {
 
       {/* ===== NAVBAR + HERO BIRU ===== */}
       <header className="bg-[#0194f3] relative pb-16 sm:pb-20">
-
-        {/* Nav Bar */}
         <nav className="px-4 sm:px-6 py-4">
           <div className="max-w-6xl mx-auto flex justify-between items-center">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push('/')}>
@@ -201,34 +218,80 @@ export default function HomePage() {
               <span className="text-xl font-extrabold text-white tracking-tight">TravelKu</span>
             </div>
 
-            <div className="flex items-center gap-3">
-              {user ? (
-                <>
-                  <span className="hidden md:block text-xs text-white/80">{user.email}</span>
-                  <button onClick={() => router.push('/bookings')} className="hidden sm:flex items-center gap-1.5 text-white/90 hover:text-white text-xs font-semibold transition-colors bg-white/10 px-3 py-2 rounded-lg">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            <div className="flex items-center gap-2 sm:gap-3 relative">
+            {user ? (
+              <>
+                <NotificationBell userId={user.id} />
+
+                <div className="hidden md:flex items-center gap-3">
+                  <span className="text-xs text-white/80 font-medium">{user.email}</span>
+                  <button 
+                    onClick={() => router.push('/bookings')} 
+                    className="flex items-center gap-1.5 text-white/90 hover:text-white text-xs font-semibold transition-colors bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg cursor-pointer"
+                  >
                     Pesanan
                   </button>
-                  <button onClick={handleLogout} className="text-white/90 hover:text-white text-xs font-semibold bg-white/10 hover:bg-red-500/80 px-3 py-2 rounded-lg transition-all cursor-pointer">
+                  <button 
+                    onClick={handleLogout} 
+                    className="text-white/90 hover:text-white text-xs font-semibold bg-white/10 hover:bg-red-500/80 px-3 py-2 rounded-lg transition-all cursor-pointer"
+                  >
                     Keluar
                   </button>
-                </>
-              ) : (
-                <button onClick={() => router.push('/login')} className="bg-white text-[#0194f3] px-5 py-2 rounded-lg text-sm font-bold hover:bg-blue-50 transition-colors shadow-sm cursor-pointer">
-                  Masuk
-                </button>
-              )}
+                </div>
+
+                <div className="md:hidden relative">
+                  <button
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                    className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-xs font-bold text-white uppercase border border-white/20 shadow-inner transition cursor-pointer"
+                  >
+                    {user.email?.substring(0, 1)}
+                  </button>
+
+                  {isMenuOpen && (
+                    <div className="absolute right-0 mt-3 w-52 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-1">
+                      <div className="px-4 py-2 border-b border-slate-100">
+                        <p className="text-[10px] text-slate-400 font-medium">Akun Saya</p>
+                        <p className="text-xs font-bold text-slate-700 truncate">{user.email}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          router.push('/bookings');
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#0194f3] flex items-center gap-2 transition-colors"
+                      >
+                        🎫 Pesanan Saya
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          handleLogout();
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors border-t border-slate-50"
+                      >
+                        🚪 Keluar Akun
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <button 
+                onClick={() => router.push('/login')} 
+                className="bg-white text-[#0194f3] px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors shadow-sm cursor-pointer"
+              >
+                Masuk
+              </button>
+            )}
             </div>
           </div>
         </nav>
 
-        {/* Hero Text */}
         <div className="text-center px-6 mt-2 sm:mt-4">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-2">Mau pergi ke mana?</h1>
           <p className="text-blue-100 text-sm max-w-md mx-auto">Temukan destinasi impian dengan harga terbaik dan pengalaman tak terlupakan.</p>
         </div>
 
-        {/* Floating Search Bar */}
         <div className="absolute -bottom-6 left-0 right-0 px-4 sm:px-6 z-20">
           <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg shadow-slate-200/60 p-2 flex items-center gap-2">
             <div className="flex-1 relative">
@@ -279,7 +342,6 @@ export default function HomePage() {
       {/* ===== DESTINATION GRID ===== */}
       <section className="px-4 sm:px-6 pb-12">
         <div className="max-w-6xl mx-auto">
-          {/* Section Title */}
           <div className="flex items-center justify-between mb-4 mt-4">
             <h2 className="text-lg font-bold text-slate-800">
               {selectedCategory === 'Semua' ? 'Destinasi Populer' : `Destinasi ${selectedCategory}`}
@@ -291,7 +353,12 @@ export default function HomePage() {
           {filtered.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {filtered.map((item) => (
-                <DestinationCard key={item.id} item={item} onBook={openBookingModal} />
+                <DestinationCard 
+                  key={item.id} 
+                  item={item} 
+                  onBook={openBookingModal} 
+                  onClick={() => setSelectedDestination(item)} 
+                />
               ))}
             </div>
           ) : (
@@ -316,15 +383,12 @@ export default function HomePage() {
         </div>
       </footer>
 
-      {/* ===== MODAL BOOKING (TRAVELOKA STYLE — BOTTOM SHEET MOBILE / CENTER DESKTOP) ===== */}
+      {/* ===== MODAL BOOKING (ASLI BAWAAN LU — TIDAK DIUBAH) ===== */}
       {isModalOpen && selectedDest && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center animate-fadeIn">
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !isBooking && setIsModalOpen(false)}></div>
-
           <div className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 md:p-8 shadow-2xl slideUpOrFade">
-            {/* Handle bar for mobile */}
             <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 md:hidden"></div>
-
             {!isBooking && (
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -361,7 +425,6 @@ export default function HomePage() {
                 />
               </div>
 
-              {/* Rincian Harga */}
               <div className="bg-blue-50 p-4 rounded-xl space-y-2">
                 <div className="flex justify-between text-sm text-slate-600">
                   <span>Harga per tiket</span>
@@ -389,6 +452,92 @@ export default function HomePage() {
                 )}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL DETAIL WISATA & REVIEW DUMMY (SEKARANG SUDAH MERDEKA & MANDIRI) ===== */}
+      {selectedDestination && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl relative text-slate-800 animate-in zoom-in-95 duration-200">
+            
+            <button 
+              onClick={() => setSelectedDestination(null)}
+              className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold transition-colors cursor-pointer z-10"
+            >
+              ✕
+            </button>
+
+            <div className="h-56 sm:h-72 w-full relative">
+              <img 
+                src={selectedDestination.image_url || "/placeholder.jpg"} 
+                alt={selectedDestination.name}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex items-end p-6">
+                <div>
+                  <span className="bg-blue-500 text-white text-[10px] uppercase font-extrabold px-2 py-1 rounded-md tracking-wider">
+                    {selectedDestination.category || 'Wisata'}
+                  </span>
+                  <h2 className="text-xl sm:text-3xl font-extrabold text-white mt-1.5">{selectedDestination.name}</h2>
+                  <p className="text-xs text-white/80 flex items-center gap-1 mt-1">📍 {selectedDestination.location}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <h3 className="font-bold text-sm sm:text-base text-slate-800">Tentang Destinasi</h3>
+              <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed">
+                {selectedDestination.description || 'Nikmati keindahan alam dan pengalaman tak terlupakan di destinasi wisata populer ini bersama keluarga atau teman terdekat Anda.'}
+              </p>
+
+              <hr className="my-5 border-slate-100" />
+
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-sm sm:text-base text-slate-800">Ulasan Pengunjung</h3>
+                <span className="text-xs font-bold text-amber-500 flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-full">
+                  ⭐ 4.8 <span className="text-slate-400 font-normal">({(DUMMY_REVIEWS[selectedDestination.id] || DUMMY_REVIEWS.default).length} Ulasan)</span>
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {(DUMMY_REVIEWS[selectedDestination.id] || DUMMY_REVIEWS.default).map((rev) => (
+                  <div key={rev.id} className="bg-slate-50/70 p-3 sm:p-4 rounded-2xl border border-slate-100">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-700">{rev.name}</span>
+                      <span className="text-[10px] text-slate-400">{rev.date}</span>
+                    </div>
+                    <div className="flex gap-0.5 my-1">
+                      {[...Array(5)].map((_, i) => (
+                        <span key={i} className={`text-xs ${i < rev.rating ? 'text-amber-400' : 'text-slate-200'}`}>★</span>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed mt-0.5">"{rev.comment}"</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between sticky bottom-0 bg-white">
+                <div>
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Harga per tiket</p>
+                  <p className="text-lg sm:text-xl font-black text-amber-500">
+                    Rp {selectedDestination.price?.toLocaleString('id-ID') || '0'}
+                  </p>
+                </div>
+                
+                <button 
+                  onClick={() => {
+                    const targetDest = selectedDestination;
+                    setSelectedDestination(null); // Tutup modal detail
+                    openBookingModal(targetDest);  // Buka modal formulir booking bawaan lu
+                  }}
+                  className="bg-[#0194f3] hover:bg-[#017ccb] text-white px-5 py-2.5 sm:px-6 rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-200 transition-all cursor-pointer"
+                >
+                  Pesan Sekarang 🎫
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       )}
