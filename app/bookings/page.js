@@ -99,27 +99,30 @@ export default function BookingsPage() {
   }
 
   // Helper warna badge status
-  const getStatusStyle = (status) => {
-    switch (status) {
-      case 'Success':
-        return 'bg-green-100 text-green-700'
-      case 'Cancelled':
-        return 'bg-red-100 text-red-700'
-      case 'Pending':
-      default:
-        return 'bg-orange-100 text-orange-700'
-    }
+const getStatusStyle = (status) => {
+  switch (status) {
+    case 'Paid':
+    case 'Success':
+      return 'bg-green-100 text-green-700' // 👈 Ini warna ijo bawaan lu bray!
+    case 'Cancelled':
+      return 'bg-red-100 text-red-700'
+    default:
+      return 'bg-amber-100 text-amber-700' // Warna kuning untuk Pending
   }
+}
   
   // Helper label status
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'Success': return 'Berhasil'
-      case 'Cancelled': return 'Dibatalkan'
-      case 'Pending':
-      default: return 'Menunggu Pembayaran'
-    }
+const getStatusLabel = (status) => {
+  switch (status) {
+    case 'Paid':
+    case 'Success': 
+      return 'Berhasil'
+    case 'Cancelled': 
+      return 'Dibatalkan'
+    default: 
+      return 'Menunggu Pembayaran'
   }
+}
 
   // Filter logika dummy sesuai tab
   const filteredBookings = bookings.filter(b => {
@@ -192,7 +195,9 @@ export default function BookingsPage() {
               const dest = booking.destinations
               if (!dest) return null
               
-              const totalPrice = booking.total_tickets * dest.price
+             const totalPrice = booking.total_price !== null && booking.total_price !== undefined
+              ? booking.total_price 
+              : booking.total_tickets * dest.price;
               const statusStyle = getStatusStyle(booking.status)
               
               return (
@@ -257,16 +262,16 @@ export default function BookingsPage() {
                       </div>
                     )}
                     {/* 2. AKSI USER JIKA STATUS SUCCESS (SEJAJAR, DI LUAR BLOK PENDING) */}
-                    {booking.status === 'Success' && (
-                      <div className="flex flex-col sm:flex-row gap-3 mt-1 pt-4 border-t border-slate-100">
-                        <button
-                          onClick={() => router.push(`/bookings/${booking.id}/ticket`)}
-                          className="w-full sm:w-auto px-5 py-2.5 bg-[#0194f3] hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all text-center cursor-pointer flex items-center justify-center gap-1"
-                        >
-                          🎫 Lihat E-Tiket Resmi
-                        </button>
-                      </div>
-                    )}
+                   {(booking.status === 'Paid' || booking.status === 'Success') && (
+                    <div className="flex flex-col sm:flex-row gap-3 mt-1 pt-4 border-t border-slate-100">
+                      <button
+                        onClick={() => router.push(`/bookings/${booking.id}/ticket`)}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-[#0194f3] hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        🎫 Lihat E-Tiket Resmi
+                      </button>
+                    </div>
+                  )}
                   </div>
                 </div>
               )

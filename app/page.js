@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import NotificationBell from '@/components/NotificationBell';
+import ReviewModal from '@/components/ReviewModal'; // 👈 Komponen baru hasil pisahan kita bray!
 
 
 // Ikon SVG per Kategori
@@ -19,22 +20,14 @@ const categoryIcons = {
   Budaya: (
     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21"></path></svg>
   ),
+  Danau: (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 11c3.5 0 6.5-1.5 6.5-3.5S15.5 4 12 4 5.5 5.5 5.5 7.5 8.5 11 12 11zM3 14c2.5 1.5 5.5 1.5 8 0s5.5-1.5 8 0M4 18c2.5 1.5 5.5 1.5 8 0s5.5-1.5 8 0" />
+    </svg>
+  ),
 }
 
-const DUMMY_REVIEWS = {
-  1: [
-    { id: 1, name: "Andi Wijaya", rating: 5, comment: "Indah banget sunrisenya! Dingin parah tapi worth it. Sangat direkomendasikan!", date: "2 minggu lalu" },
-    { id: 2, name: "Siti Rahma", rating: 4, comment: "Pemandangannya juara, cuma pas ke sana agak ramai aja. Jasa jeep-nya ramah.", date: "1 bulan lalu" }
-  ],
-  2: [
-    { id: 3, name: "Budi Santoso", rating: 5, comment: "Tempat yang magis, megah banget Borobudur. Bersih dan tertata rapi.", date: "3 hari lalu" },
-    { id: 4, name: "Dewi Lestari", rating: 5, comment: "Keren sejarahnya, wajib sewa pemandu biar paham cerita reliefnya.", date: "3 minggu lalu" }
-  ],
-  default: [
-    { id: 99, name: "Traveler Asik", rating: 5, comment: "Tempatnya bagus banget, bersih, pelayanannya ramah. Mantap pokoknya!", date: "Baru saja" }
-  ]
-};
-
+// Fallback ikon generik untuk kategori yang tidak dikenal
 const defaultCategoryIcon = (
   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
 )
@@ -112,7 +105,7 @@ export default function HomePage() {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Modal Booking State
+  // Modal Booking & Review State
   const [selectedDestination, setSelectedDestination] = useState(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -120,6 +113,10 @@ export default function HomePage() {
   const [travelDate, setTravelDate] = useState('')
   const [totalTickets, setTotalTickets] = useState(1)
   const [isBooking, setIsBooking] = useState(false)
+  // 🔽 TAMBAHKAN 3 STATE BARU INI BRAY 🔽
+  const [promoCode, setPromoCode] = useState('')
+  const [appliedDiscount, setAppliedDiscount] = useState({ type: null, value: 0, message: '' })
+  const [promoError, setPromoError] = useState('')
 
   const router = useRouter()
 
@@ -161,6 +158,7 @@ export default function HomePage() {
     router.push('/')
   }
 
+  // Fungsi reset promo saat modal dibuka
   const openBookingModal = (item) => {
     if (!user) {
       alert("Silakan login untuk melakukan pemesanan")
@@ -170,31 +168,87 @@ export default function HomePage() {
       setTravelDate('')
       setTotalTickets(1)
       setIsModalOpen(true)
+      
+      // 🔽 Reset promo tiap buka modal baru
+      setPromoCode('')
+      setAppliedDiscount({ type: null, value: 0, message: '' })
+      setPromoError('')
     }
   }
 
+  // 🔽 FUNGSI CEK PROMO BARU 🔽
+  const handleApplyPromo = () => {
+    setPromoError('')
+    const code = promoCode.trim().toUpperCase()
+
+    if (!code) {
+      setPromoError('Masukkan kode promo terlebih dahulu bray!')
+      return
+    }
+
+    if (code === 'IKUTIKAN') {
+      setAppliedDiscount({
+        type: 'PERCENT',
+        value: 15,
+        message: '🎉 Mantap! Promo IKUTIKAN berhasil dipakai (Diskon 15%)'
+      })
+    } else if (code === 'JALANASIK') {
+      setAppliedDiscount({
+        type: 'FIXED',
+        value: 50000,
+        message: '🎉 Asik! Promo JALANASIK berhasil dipakai (Potongan Rp 50.000)'
+      })
+    } else {
+      setPromoError('❌ Yah, kode promo gak valid atau udah hangus bray.')
+      setAppliedDiscount({ type: null, value: 0, message: '' })
+    }
+  }
+
+// UPDATE FUNGSI SUBMIT BOOKING LU JADI SEPERTI INI BRAY:
   const submitBooking = async (e) => {
     e.preventDefault()
     if (!user || !selectedDest || !travelDate || totalTickets < 1) return
 
     setIsBooking(true)
-    const { error } = await supabase.from('bookings').insert({
-      user_id: user.id,
-      destination_id: selectedDest.id,
-      travel_date: travelDate,
-      total_tickets: totalTickets,
-      status: 'Pending'
-    })
+
+    // 1. Hitung ulang harga final (termasuk diskon) sebelum dikirim ke Supabase
+    const hargaAsliTotal = selectedDest.price * totalTickets
+    let totalPotongan = 0
+
+    if (appliedDiscount.type === 'PERCENT') {
+      totalPotongan = hargaAsliTotal * (appliedDiscount.value / 100)
+    } else if (appliedDiscount.type === 'FIXED') {
+      totalPotongan = appliedDiscount.value
+    }
+
+    const hargaFinal = Math.max(0, hargaAsliTotal - totalPotongan)
+
+    // 2. Kirim data ke Supabase, masukkan variabel hargaFinal ke kolom total_price
+   const { data: newBooking, error } = await supabase
+      .from('bookings')
+      .insert({
+        user_id: user.id,
+        destination_id: selectedDest.id,
+        travel_date: travelDate,
+        total_tickets: totalTickets,
+        total_price: hargaFinal,
+        status: 'Pending'
+      })
+      .select('id')
+      .single()
 
     setIsBooking(false)
+    
     if (error) {
       alert("Gagal melakukan pemesanan: " + error.message)
     } else {
       setIsModalOpen(false)
-      router.push('/bookings')
+      // 🚀 Alirkan user ke halaman checkout interaktif yang barusan kita bikin!
+      router.push(`/checkout/${newBooking.id}`)
     }
   }
 
+  // Get unique categories
   const categories = ['Semua', ...new Set(destinations.map(d => d.category).filter(Boolean))]
 
   if (loading) return (
@@ -209,6 +263,8 @@ export default function HomePage() {
 
       {/* ===== NAVBAR + HERO BIRU ===== */}
       <header className="bg-[#0194f3] relative pb-16 sm:pb-20">
+
+        {/* Nav Bar */}
         <nav className="px-4 sm:px-6 py-4">
           <div className="max-w-6xl mx-auto flex justify-between items-center">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push('/')}>
@@ -221,16 +277,20 @@ export default function HomePage() {
             <div className="flex items-center gap-2 sm:gap-3 relative">
             {user ? (
               <>
+                {/* 1. LONCENG NOTIFIKASI */}
                 <NotificationBell userId={user.id} />
 
+                {/* 2. TAMPILAN DI LAPTOP / DESKTOP */}
                 <div className="hidden md:flex items-center gap-3">
                   <span className="text-xs text-white/80 font-medium">{user.email}</span>
+                  
                   <button 
                     onClick={() => router.push('/bookings')} 
                     className="flex items-center gap-1.5 text-white/90 hover:text-white text-xs font-semibold transition-colors bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg cursor-pointer"
                   >
                     Pesanan
                   </button>
+
                   <button 
                     onClick={handleLogout} 
                     className="text-white/90 hover:text-white text-xs font-semibold bg-white/10 hover:bg-red-500/80 px-3 py-2 rounded-lg transition-all cursor-pointer"
@@ -239,6 +299,7 @@ export default function HomePage() {
                   </button>
                 </div>
 
+                {/* 3. TAMPILAN DI HP / MOBILE */}
                 <div className="md:hidden relative">
                   <button
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -253,6 +314,7 @@ export default function HomePage() {
                         <p className="text-[10px] text-slate-400 font-medium">Akun Saya</p>
                         <p className="text-xs font-bold text-slate-700 truncate">{user.email}</p>
                       </div>
+                      
                       <button
                         onClick={() => {
                           setIsMenuOpen(false);
@@ -262,6 +324,7 @@ export default function HomePage() {
                       >
                         🎫 Pesanan Saya
                       </button>
+
                       <button
                         onClick={() => {
                           setIsMenuOpen(false);
@@ -287,11 +350,13 @@ export default function HomePage() {
           </div>
         </nav>
 
+        {/* Hero Text */}
         <div className="text-center px-6 mt-2 sm:mt-4">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mb-2">Mau pergi ke mana?</h1>
           <p className="text-blue-100 text-sm max-w-md mx-auto">Temukan destinasi impian dengan harga terbaik dan pengalaman tak terlupakan.</p>
         </div>
 
+        {/* Floating Search Bar */}
         <div className="absolute -bottom-6 left-0 right-0 px-4 sm:px-6 z-20">
           <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg shadow-slate-200/60 p-2 flex items-center gap-2">
             <div className="flex-1 relative">
@@ -342,6 +407,7 @@ export default function HomePage() {
       {/* ===== DESTINATION GRID ===== */}
       <section className="px-4 sm:px-6 pb-12">
         <div className="max-w-6xl mx-auto">
+          {/* Section Title */}
           <div className="flex items-center justify-between mb-4 mt-4">
             <h2 className="text-lg font-bold text-slate-800">
               {selectedCategory === 'Semua' ? 'Destinasi Populer' : `Destinasi ${selectedCategory}`}
@@ -357,7 +423,7 @@ export default function HomePage() {
                   key={item.id} 
                   item={item} 
                   onBook={openBookingModal} 
-                  onClick={() => setSelectedDestination(item)} 
+                  onClick={() => setSelectedDestination(item)}
                 />
               ))}
             </div>
@@ -383,164 +449,146 @@ export default function HomePage() {
         </div>
       </footer>
 
-      {/* ===== MODAL BOOKING (ASLI BAWAAN LU — TIDAK DIUBAH) ===== */}
-      {isModalOpen && selectedDest && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center animate-fadeIn">
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !isBooking && setIsModalOpen(false)}></div>
-          <div className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 md:p-8 shadow-2xl slideUpOrFade">
-            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 md:hidden"></div>
-            {!isBooking && (
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full p-2 transition-colors cursor-pointer"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-              </button>
-            )}
+     {/* ===== MODAL BOOKING (DENGAN FITUR PROMO) ===== */}
+      {isModalOpen && selectedDest && (() => {
+        // HITUNG LOGIC HARGA SECARA LIVE DI SINI BRAY
+        const hargaAsliTotal = selectedDest.price * totalTickets
+        let totalPotongan = 0
 
-            <h3 className="text-xl font-bold text-slate-800 mb-1">Pesan Tiket</h3>
-            <p className="text-slate-500 text-sm mb-5 pb-4 border-b border-slate-100">{selectedDest.name} — {selectedDest.location}</p>
+        if (appliedDiscount.type === 'PERCENT') {
+          totalPotongan = hargaAsliTotal * (appliedDiscount.value / 100)
+        } else if (appliedDiscount.type === 'FIXED') {
+          totalPotongan = appliedDiscount.value
+        }
 
-            <form onSubmit={submitBooking} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal Perjalanan</label>
-                <input
-                  type="date"
-                  required
-                  value={travelDate}
-                  onChange={(e) => setTravelDate(e.target.value)}
-                  className="w-full bg-white border border-slate-300 text-slate-800 rounded-xl p-3.5 focus:ring-2 focus:ring-[#0194f3] focus:border-[#0194f3] outline-none transition-all cursor-pointer text-sm"
-                />
-              </div>
+        // Supaya harga total tidak minus kalau diskon kegedean
+        const hargaFinal = Math.max(0, hargaAsliTotal - totalPotongan)
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">Jumlah Tiket</label>
-                <input
-                  type="number"
-                  min="1"
-                  required
-                  value={totalTickets}
-                  onChange={(e) => setTotalTickets(parseInt(e.target.value) || 1)}
-                  className="w-full bg-white border border-slate-300 text-slate-800 rounded-xl p-3.5 focus:ring-2 focus:ring-[#0194f3] focus:border-[#0194f3] outline-none transition-all text-sm"
-                />
-              </div>
+        return (
+          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center animate-fadeIn">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !isBooking && setIsModalOpen(false)}></div>
 
-              <div className="bg-blue-50 p-4 rounded-xl space-y-2">
-                <div className="flex justify-between text-sm text-slate-600">
-                  <span>Harga per tiket</span>
-                  <span>Rp {Number(selectedDest.price).toLocaleString('id-ID')}</span>
-                </div>
-                <div className="flex justify-between text-sm text-slate-600">
-                  <span>Jumlah</span>
-                  <span>x{totalTickets}</span>
-                </div>
-                <div className="flex justify-between text-base font-bold text-slate-800 border-t border-blue-200 pt-2">
-                  <span>Total Harga</span>
-                  <span className="text-[#0194f3]">Rp {(selectedDest.price * totalTickets).toLocaleString('id-ID')}</span>
-                </div>
-              </div>
+            <div className="relative bg-white w-full md:max-w-md rounded-t-3xl md:rounded-2xl p-6 md:p-8 shadow-2xl slideUpOrFade">
+              <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-5 md:hidden"></div>
 
-              <button
-                type="submit"
-                disabled={isBooking}
-                className="w-full bg-[#0194f3] text-white font-bold py-4 rounded-xl hover:bg-blue-600 transition-all shadow-md shadow-blue-200/50 flex justify-center items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm mt-2"
-              >
-                {isBooking ? (
-                  <span className="animate-pulse">Memproses pemesanan...</span>
-                ) : (
-                  'Pesan Sekarang'
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== MODAL DETAIL WISATA & REVIEW DUMMY (SEKARANG SUDAH MERDEKA & MANDIRI) ===== */}
-      {selectedDestination && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl relative text-slate-800 animate-in zoom-in-95 duration-200">
-            
-            <button 
-              onClick={() => setSelectedDestination(null)}
-              className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold transition-colors cursor-pointer z-10"
-            >
-              ✕
-            </button>
-
-            <div className="h-56 sm:h-72 w-full relative">
-              <img 
-                src={selectedDestination.image_url || "/placeholder.jpg"} 
-                alt={selectedDestination.name}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent flex items-end p-6">
-                <div>
-                  <span className="bg-blue-500 text-white text-[10px] uppercase font-extrabold px-2 py-1 rounded-md tracking-wider">
-                    {selectedDestination.category || 'Wisata'}
-                  </span>
-                  <h2 className="text-xl sm:text-3xl font-extrabold text-white mt-1.5">{selectedDestination.name}</h2>
-                  <p className="text-xs text-white/80 flex items-center gap-1 mt-1">📍 {selectedDestination.location}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6">
-              <h3 className="font-bold text-sm sm:text-base text-slate-800">Tentang Destinasi</h3>
-              <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed">
-                {selectedDestination.description || 'Nikmati keindahan alam dan pengalaman tak terlupakan di destinasi wisata populer ini bersama keluarga atau teman terdekat Anda.'}
-              </p>
-
-              <hr className="my-5 border-slate-100" />
-
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-sm sm:text-base text-slate-800">Ulasan Pengunjung</h3>
-                <span className="text-xs font-bold text-amber-500 flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-full">
-                  ⭐ 4.8 <span className="text-slate-400 font-normal">({(DUMMY_REVIEWS[selectedDestination.id] || DUMMY_REVIEWS.default).length} Ulasan)</span>
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                {(DUMMY_REVIEWS[selectedDestination.id] || DUMMY_REVIEWS.default).map((rev) => (
-                  <div key={rev.id} className="bg-slate-50/70 p-3 sm:p-4 rounded-2xl border border-slate-100">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-slate-700">{rev.name}</span>
-                      <span className="text-[10px] text-slate-400">{rev.date}</span>
-                    </div>
-                    <div className="flex gap-0.5 my-1">
-                      {[...Array(5)].map((_, i) => (
-                        <span key={i} className={`text-xs ${i < rev.rating ? 'text-amber-400' : 'text-slate-200'}`}>★</span>
-                      ))}
-                    </div>
-                    <p className="text-xs text-slate-600 leading-relaxed mt-0.5">"{rev.comment}"</p>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between sticky bottom-0 bg-white">
-                <div>
-                  <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Harga per tiket</p>
-                  <p className="text-lg sm:text-xl font-black text-amber-500">
-                    Rp {selectedDestination.price?.toLocaleString('id-ID') || '0'}
-                  </p>
-                </div>
-                
-                <button 
-                  onClick={() => {
-                    const targetDest = selectedDestination;
-                    setSelectedDestination(null); // Tutup modal detail
-                    openBookingModal(targetDest);  // Buka modal formulir booking bawaan lu
-                  }}
-                  className="bg-[#0194f3] hover:bg-[#017ccb] text-white px-5 py-2.5 sm:px-6 rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-200 transition-all cursor-pointer"
+              {!isBooking && (
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-full p-2 transition-colors cursor-pointer"
                 >
-                  Pesan Sekarang 🎫
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
-              </div>
-            </div>
+              )}
 
+              <h3 className="text-xl font-bold text-slate-800 mb-1">Pesan Tiket</h3>
+              <p className="text-slate-500 text-sm mb-5 pb-4 border-b border-slate-100">{selectedDest.name} — {selectedDest.location}</p>
+
+              <form onSubmit={submitBooking} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Tanggal Perjalanan</label>
+                  <input
+                    type="date"
+                    required
+                    value={travelDate}
+                    onChange={(e) => setTravelDate(e.target.value)}
+                    className="w-full bg-white border border-slate-300 text-slate-800 rounded-xl p-3.5 focus:ring-2 focus:ring-[#0194f3] focus:border-[#0194f3] outline-none transition-all cursor-pointer text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Jumlah Tiket</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={totalTickets}
+                    onChange={(e) => setTotalTickets(parseInt(e.target.value) || 1)}
+                    className="w-full bg-white border border-slate-300 text-slate-800 rounded-xl p-3.5 focus:ring-2 focus:ring-[#0194f3] focus:border-[#0194f3] outline-none transition-all text-sm"
+                  />
+                </div>
+
+                {/* INPUT KODE PROMO BARU (GAYA TRAVELOKA) */}
+                <div className="pt-2">
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Punya Kode Promo?</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Masukkan Kode Promo"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value)}
+                      className="flex-1 bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3 py-2.5 text-xs font-semibold focus:outline-none focus:border-[#0194f3] uppercase placeholder:normal-case"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyPromo}
+                      className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition-colors cursor-pointer"
+                    >
+                      Terapkan
+                    </button>
+                  </div>
+                  {/* Pesan Sukses / Error Promo */}
+                  {appliedDiscount.message && <p className="text-[11px] text-emerald-600 font-semibold mt-1.5">{appliedDiscount.message}</p>}
+                  {promoError && <p className="text-[11px] text-red-500 font-semibold mt-1.5">{promoError}</p>}
+                </div>
+
+                {/* Rincian Harga Terupdate dengan Diskon */}
+                <div className="bg-blue-50/70 border border-blue-100 p-4 rounded-xl space-y-2">
+                  <div className="flex justify-between text-sm text-slate-600">
+                    <span>Harga per tiket</span>
+                    <span>Rp {Number(selectedDest.price).toLocaleString('id-ID')}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-slate-600">
+                    <span>Jumlah</span>
+                    <span>x{totalTickets}</span>
+                  </div>
+                  
+                  {/* Tampilkan baris potongan jika diskon aktif */}
+                  {totalPotongan > 0 && (
+                    <div className="flex justify-between text-sm text-emerald-600 font-medium">
+                      <span>Potongan Promo</span>
+                      <span>- Rp {totalPotongan.toLocaleString('id-ID')}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-base font-bold text-slate-800 border-t border-blue-100 pt-2 items-end">
+                    <span>Total Harga</span>
+                    <div className="text-right">
+                      {/* Kalau ada diskon, coret harga lama */}
+                      {totalPotongan > 0 && (
+                        <p className="text-xs text-slate-400 font-normal line-through mb-0.5">
+                          Rp {hargaAsliTotal.toLocaleString('id-ID')}
+                        </p>
+                      )}
+                      <span className="text-[#0194f3] text-lg font-black">
+                        Rp {hargaFinal.toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isBooking}
+                  className="w-full bg-[#0194f3] text-white font-bold py-4 rounded-xl hover:bg-blue-600 transition-all shadow-md shadow-blue-200/50 flex justify-center items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm mt-2"
+                >
+                  {isBooking ? (
+                    <span className="animate-pulse">Memproses pemesanan...</span>
+                  ) : (
+                    'Pesan Sekarang'
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
+
+      {/* ===== MODAL DETAIL WISATA & REVIEW DUMMY (SEKARANG SUDAH BERSIH DAN DIPISAH KE FILE LAIN) ===== */}
+      <ReviewModal 
+        selectedDestination={selectedDestination} 
+        onClose={() => setSelectedDestination(null)} 
+        onBookNow={(targetDest) => openBookingModal(targetDest)} 
+      />
 
       <style jsx global>{`
         @keyframes fadeIn {
