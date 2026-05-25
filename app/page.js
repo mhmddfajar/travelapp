@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import NotificationBell from '@/components/NotificationBell';
-import ReviewModal from '@/components/ReviewModal'; // 👈 Komponen baru hasil pisahan kita bray!
-
+import ReviewModal from '@/components/ReviewModal'; 
+import ChatBot from '@/components/ChatBot' 
 
 // Ikon SVG per Kategori
 const categoryIcons = {
@@ -27,33 +27,43 @@ const categoryIcons = {
   ),
 }
 
-// Fallback ikon generik untuk kategori yang tidak dikenal
 const defaultCategoryIcon = (
   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
 )
 
-// Komponen Kartu Destinasi Traveloka-style
-function DestinationCard({ item, onBook, onClick }) { 
+// 🚀 KOMPONEN KARTU DESTINASI (Strukturnya dirapikan agar ulasan real-time bekerja bray)
+function DestinationCard({ item, onBook, onClick }) {
   const [liked, setLiked] = useState(false)
-  const dummyRating = '4.8'
+
+  // Ambil array ulasan dari properti item hasil query Supabase
+  const itemReviews = item?.reviews || [];
+  const totalRating = itemReviews.reduce((sum, rev) => sum + rev.rating, 0);
+  const averageRating = itemReviews.length > 0 
+    ? (totalRating / itemReviews.length).toFixed(1) 
+    : 'New';
 
   return (
-   <div 
+    <div 
       onClick={onClick} 
-      className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden cursor-pointer hover:shadow-md transition-all group"
+      className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden cursor-pointer hover:shadow-md transition-all group flex flex-col h-full"
     >
       {/* Gambar */}
-      <div className="relative h-44 sm:h-48 overflow-hidden">
+      <div className="relative h-44 sm:h-48 overflow-hidden flex-shrink-0">
         <img
           src={item.image_url || 'https://via.placeholder.com/400x250'}
           alt={item.name}
           className="w-full h-full object-cover"
         />
 
-        {/* Overlay Rating */}
-        <div className="absolute top-2.5 left-2.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md flex items-center gap-1 shadow-sm">
-          <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg>
-          <span className="text-xs font-bold text-slate-700">{dummyRating}</span>
+        {/* Overlay Rating Dinamis */}
+        <div className="absolute top-2.5 left-2.5 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md flex items-center gap-1 shadow-sm z-10">
+          <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+          </svg>
+          <span className="text-xs font-bold text-slate-700">{averageRating}</span>
+          {itemReviews.length > 0 && (
+            <span className="text-slate-400 font-normal text-[10px]">({itemReviews.length})</span>
+          )}
         </div>
 
         {/* Wishlist Heart */}
@@ -113,34 +123,46 @@ export default function HomePage() {
   const [travelDate, setTravelDate] = useState('')
   const [totalTickets, setTotalTickets] = useState(1)
   const [isBooking, setIsBooking] = useState(false)
-  // 🔽 TAMBAHKAN 3 STATE BARU INI BRAY 🔽
+  
   const [promoCode, setPromoCode] = useState('')
   const [appliedDiscount, setAppliedDiscount] = useState({ type: null, value: 0, message: '' })
   const [promoError, setPromoError] = useState('')
 
   const router = useRouter()
 
-  useEffect(() => {
-    const getData = async () => {
-      setLoading(true)
-      const { data: { session } } = await supabase.auth.getSession()
-      setUser(session?.user || null)
+ useEffect(() => {
+  const getData = async () => {
+    setLoading(true)
+    
+    // 1. Ambil session user login
+    const { data: { session } } = await supabase.auth.getSession()
+    setUser(session?.user || null)
 
-      const { data } = await supabase.from('destinations').select('*')
+    // 2. Tarik data destinasi + seluruh isi ulasannya
+    const { data, error } = await supabase
+      .from('destinations')
+      .select('*, reviews(*)') 
+    
+    if (error) {
+      console.error("Gagal ambil data wisata bray:", error)
+    } else {
       setDestinations(data || [])
       setFiltered(data || [])
-      setLoading(false)
     }
-    getData()
+    setLoading(false)
+  }
+  
+  getData()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null)
-    })
+  // Listener buat mantau user login/logout secara real-time
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    setUser(session?.user || null)
+  })
 
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [])
+  return () => {
+    subscription.unsubscribe()
+  }
+}, [])
 
   // Fungsi Filter Search & Category
   useEffect(() => {
@@ -158,7 +180,6 @@ export default function HomePage() {
     router.push('/')
   }
 
-  // Fungsi reset promo saat modal dibuka
   const openBookingModal = (item) => {
     if (!user) {
       alert("Silakan login untuk melakukan pemesanan")
@@ -169,14 +190,12 @@ export default function HomePage() {
       setTotalTickets(1)
       setIsModalOpen(true)
       
-      // 🔽 Reset promo tiap buka modal baru
       setPromoCode('')
       setAppliedDiscount({ type: null, value: 0, message: '' })
       setPromoError('')
     }
   }
 
-  // 🔽 FUNGSI CEK PROMO BARU 🔽
   const handleApplyPromo = () => {
     setPromoError('')
     const code = promoCode.trim().toUpperCase()
@@ -204,14 +223,12 @@ export default function HomePage() {
     }
   }
 
-// UPDATE FUNGSI SUBMIT BOOKING LU JADI SEPERTI INI BRAY:
   const submitBooking = async (e) => {
     e.preventDefault()
     if (!user || !selectedDest || !travelDate || totalTickets < 1) return
 
     setIsBooking(true)
 
-    // 1. Hitung ulang harga final (termasuk diskon) sebelum dikirim ke Supabase
     const hargaAsliTotal = selectedDest.price * totalTickets
     let totalPotongan = 0
 
@@ -223,8 +240,7 @@ export default function HomePage() {
 
     const hargaFinal = Math.max(0, hargaAsliTotal - totalPotongan)
 
-    // 2. Kirim data ke Supabase, masukkan variabel hargaFinal ke kolom total_price
-   const { data: newBooking, error } = await supabase
+    const { data: newBooking, error } = await supabase
       .from('bookings')
       .insert({
         user_id: user.id,
@@ -243,12 +259,10 @@ export default function HomePage() {
       alert("Gagal melakukan pemesanan: " + error.message)
     } else {
       setIsModalOpen(false)
-      // 🚀 Alirkan user ke halaman checkout interaktif yang barusan kita bikin!
       router.push(`/checkout/${newBooking.id}`)
     }
   }
 
-  // Get unique categories
   const categories = ['Semua', ...new Set(destinations.map(d => d.category).filter(Boolean))]
 
   if (loading) return (
@@ -277,10 +291,8 @@ export default function HomePage() {
             <div className="flex items-center gap-2 sm:gap-3 relative">
             {user ? (
               <>
-                {/* 1. LONCENG NOTIFIKASI */}
                 <NotificationBell userId={user.id} />
 
-                {/* 2. TAMPILAN DI LAPTOP / DESKTOP */}
                 <div className="hidden md:flex items-center gap-3">
                   <span className="text-xs text-white/80 font-medium">{user.email}</span>
                   
@@ -299,7 +311,6 @@ export default function HomePage() {
                   </button>
                 </div>
 
-                {/* 3. TAMPILAN DI HP / MOBILE */}
                 <div className="md:hidden relative">
                   <button
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -407,7 +418,6 @@ export default function HomePage() {
       {/* ===== DESTINATION GRID ===== */}
       <section className="px-4 sm:px-6 pb-12">
         <div className="max-w-6xl mx-auto">
-          {/* Section Title */}
           <div className="flex items-center justify-between mb-4 mt-4">
             <h2 className="text-lg font-bold text-slate-800">
               {selectedCategory === 'Semua' ? 'Destinasi Populer' : `Destinasi ${selectedCategory}`}
@@ -415,7 +425,6 @@ export default function HomePage() {
             <span className="text-xs text-slate-400 font-medium">{filtered.length} destinasi</span>
           </div>
 
-          {/* Grid Cards */}
           {filtered.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {filtered.map((item) => (
@@ -449,9 +458,8 @@ export default function HomePage() {
         </div>
       </footer>
 
-     {/* ===== MODAL BOOKING (DENGAN FITUR PROMO) ===== */}
+      {/* ===== MODAL BOOKING (DENGAN FITUR PROMO) ===== */}
       {isModalOpen && selectedDest && (() => {
-        // HITUNG LOGIC HARGA SECARA LIVE DI SINI BRAY
         const hargaAsliTotal = selectedDest.price * totalTickets
         let totalPotongan = 0
 
@@ -461,7 +469,6 @@ export default function HomePage() {
           totalPotongan = appliedDiscount.value
         }
 
-        // Supaya harga total tidak minus kalau diskon kegedean
         const hargaFinal = Math.max(0, hargaAsliTotal - totalPotongan)
 
         return (
@@ -507,7 +514,6 @@ export default function HomePage() {
                   />
                 </div>
 
-                {/* INPUT KODE PROMO BARU (GAYA TRAVELOKA) */}
                 <div className="pt-2">
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Punya Kode Promo?</label>
                   <div className="flex gap-2">
@@ -526,12 +532,10 @@ export default function HomePage() {
                       Terapkan
                     </button>
                   </div>
-                  {/* Pesan Sukses / Error Promo */}
                   {appliedDiscount.message && <p className="text-[11px] text-emerald-600 font-semibold mt-1.5">{appliedDiscount.message}</p>}
                   {promoError && <p className="text-[11px] text-red-500 font-semibold mt-1.5">{promoError}</p>}
                 </div>
 
-                {/* Rincian Harga Terupdate dengan Diskon */}
                 <div className="bg-blue-50/70 border border-blue-100 p-4 rounded-xl space-y-2">
                   <div className="flex justify-between text-sm text-slate-600">
                     <span>Harga per tiket</span>
@@ -542,7 +546,6 @@ export default function HomePage() {
                     <span>x{totalTickets}</span>
                   </div>
                   
-                  {/* Tampilkan baris potongan jika diskon aktif */}
                   {totalPotongan > 0 && (
                     <div className="flex justify-between text-sm text-emerald-600 font-medium">
                       <span>Potongan Promo</span>
@@ -553,7 +556,6 @@ export default function HomePage() {
                   <div className="flex justify-between text-base font-bold text-slate-800 border-t border-blue-100 pt-2 items-end">
                     <span>Total Harga</span>
                     <div className="text-right">
-                      {/* Kalau ada diskon, coret harga lama */}
                       {totalPotongan > 0 && (
                         <p className="text-xs text-slate-400 font-normal line-through mb-0.5">
                           Rp {hargaAsliTotal.toLocaleString('id-ID')}
@@ -583,13 +585,19 @@ export default function HomePage() {
         )
       })()}
 
-      {/* ===== MODAL DETAIL WISATA & REVIEW DUMMY (SEKARANG SUDAH BERSIH DAN DIPISAH KE FILE LAIN) ===== */}
+      {/* ===== MODAL DETAIL WISATA & REVIEW ===== */}
       <ReviewModal 
         selectedDestination={selectedDestination} 
         onClose={() => setSelectedDestination(null)} 
         onBookNow={(targetDest) => openBookingModal(targetDest)} 
       />
 
+      {/* ===== KOMPONEN SMART CHAT BOT ASISTEN ===== */}
+      <ChatBot 
+        destinations={destinations} 
+        onBookNow={openBookingModal} 
+      />
+    
       <style jsx global>{`
         @keyframes fadeIn {
           from { opacity: 0; }

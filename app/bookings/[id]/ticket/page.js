@@ -62,7 +62,12 @@ export default function TicketPage({ params }) {
   if (!booking) return null
 
   const dest = booking.destinations
-  const totalPrice = booking.total_tickets * dest.price
+
+  // 🚀 GANTI BARIS INI BIAR BACA TOTAL_PRICE DARI DATABASE LU BRAY!
+  const totalPrice = booking.total_price !== null && booking.total_price !== undefined
+    ? booking.total_price 
+    : booking.total_tickets * dest.price
+
   const qrValue = `VALID-TICKET-${booking.id}`
   const bookingCode = `TRV-${String(booking.id).padStart(6, '0')}`
 

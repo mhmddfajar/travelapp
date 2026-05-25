@@ -14,6 +14,11 @@ export default function BookingsPage() {
   const [selectedBooking, setSelectedBooking] = useState(null)
   const [newTravelDate, setNewTravelDate] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
+  const [selectedBookingForReview, setSelectedBookingForReview] = useState(null)
+  const [reviewRating, setReviewRating] = useState(5) // default bintang 5
+  const [reviewComment, setReviewComment] = useState('')
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false)
 
   // State filter tabs (visual)
   const [activeTab, setActiveTab] = useState('Semua Pesanan')
@@ -131,6 +136,68 @@ const getStatusLabel = (status) => {
     if (activeTab === 'Selesai') return b.status === 'Success'
     return true
   })
+
+ const handleSubmitReview = async (e) => {
+  // Biar gak reload halaman pas klik submit form bray
+  if (e && typeof e.preventDefault === 'function') {
+    e.preventDefault();
+  }
+
+  if (!selectedBookingForReview) {
+    alert("Data booking tidak ditemukan bray!");
+    return;
+  }
+
+  setIsSubmittingReview(true);
+  
+  try {
+    // 🚀 LANGKAH SAKTI: Ambil email user yang beneran lagi LOGIN saat ini dari Supabase Auth
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    // Ambil email dari session login, kalau gak ada jatuh ke cadangan biar RLS Supabase gak nolak!
+    const emailPenulis = session?.user?.email || selectedBookingForReview.user_email || 'traveler.asik@gmail.com';
+
+    // Ambil ID destinasi secara aman dari objek relasi data booking lu bray
+    const idDestinasi = selectedBookingForReview.destination_id || selectedBookingForReview.destinations?.id;
+
+    if (!idDestinasi) {
+      alert("ID Destinasi kosong bray, gagal mengirim ulasan!");
+      setIsSubmittingReview(false);
+      return;
+    }
+
+    // Tembak murni ke Supabase
+    const { error } = await supabase
+      .from('reviews')
+      .insert([
+        {
+          booking_id: Number(selectedBookingForReview.id),
+          destination_id: Number(idDestinasi),
+          rating: Number(reviewRating || 5), // Pastikan formatnya angka murni (int4) bray
+          comment: String(reviewComment || '').trim(), // Teks ulasan "gokill brayy"
+          user_email: emailPenulis // 🚀 DISIMPAN KE SUPABASE, OTOMATIS GAK NULL LAGI!
+        }
+      ]);
+
+    setIsSubmittingReview(false);
+
+    if (error) {
+      console.error("Detail error Supabase bray:", error);
+      alert('Gagal mengirim ulasan: ' + error.message);
+    } else {
+      alert('🎉 Ulasan lu berhasil disimpan bray!');
+      setIsReviewModalOpen(false);
+      setReviewComment('');
+      setReviewRating(5);
+      
+    }
+
+  } catch (err) {
+    console.error("Crash sistem ulasan bray:", err);
+    setIsSubmittingReview(false);
+    alert('Terjadi kesalahan sistem saat mengirim ulasan.');
+  }
+};
 
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#f2f3f7] text-slate-600">
@@ -261,15 +328,31 @@ const getStatusLabel = (status) => {
                         </button>
                       </div>
                     )}
+
                     {/* 2. AKSI USER JIKA STATUS SUCCESS (SEJAJAR, DI LUAR BLOK PENDING) */}
-                   {(booking.status === 'Paid' || booking.status === 'Success') && (
-                    <div className="flex flex-col sm:flex-row gap-3 mt-1 pt-4 border-t border-slate-100">
+                  {(booking.status === 'Paid' || booking.status === 'Success' || booking.status === 'Berhasil') && (
+                  <div className="flex flex-col sm:flex-row gap-3 mt-1 pt-4 border-t border-slate-100">
+                    <button
+                      onClick={() => router.push(`/bookings/${booking.id}/ticket`)}
+                      className="w-full sm:w-auto px-5 py-2.5 bg-[#0194f3] hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      🎫 Lihat E-Tiket Resmi
+                    </button>
+                    
+                    {/* 🚀 TOMBOL BERI ULASAN NYA DISESUAIKAN SAMA STATUS DI DB LU BRAY */}
+                    {(booking.status === 'Success' || booking.status === 'Berhasil') && (
                       <button
-                        onClick={() => router.push(`/bookings/${booking.id}/ticket`)}
-                        className="w-full sm:w-auto px-5 py-2.5 bg-[#0194f3] hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-sm transition-all text-center cursor-pointer flex items-center justify-center gap-1"
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          setSelectedBookingForReview(booking)
+                          setIsReviewModalOpen(true)
+                        }}
+                        className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow-sm transition-all text-center cursor-pointer flex items-center justify-center gap-1"
                       >
-                        🎫 Lihat E-Tiket Resmi
+                        ⭐ Beri Ulasan Wisata
                       </button>
+                    )}
                     </div>
                   )}
                   </div>
@@ -280,7 +363,7 @@ const getStatusLabel = (status) => {
         )}
       </div>
 
-      {/* MODAL UBAH TANGGAL (MOBILE BOTTOM SHEET & PC CENTER) */}
+     {/* 1. MODAL UBAH TANGGAL (MOBILE BOTTOM SHEET & PC CENTER) */}
       {isEditModalOpen && selectedBooking && (
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center animate-fadeIn">
           {/* Overlay */}
@@ -327,6 +410,72 @@ const getStatusLabel = (status) => {
                   'Simpan Perubahan'
                 )}
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. 🔮 MODAL POPUP BERI RATING & REVIEW ESTETIK (SEKARANG SUDAH MANDIRI DI LUAR BRAY!) */}
+      {isReviewModalOpen && selectedBookingForReview && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 overflow-hidden animate-fadeIn">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+              <h3 className="text-sm font-bold text-slate-800">Beri Ulasan Liburan</h3>
+              <button onClick={() => setIsReviewModalOpen(false)} className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer">✕</button>
+            </div>
+
+            <p className="text-xs text-slate-600 mb-4">
+              Gimana pengalaman lu kemarin jalan-jalan ke <span className="font-bold text-[#0194f3]">{selectedBookingForReview.destinations?.name}</span> bray?
+            </p>
+
+            <form onSubmit={handleSubmitReview} className="space-y-4">
+              {/* Pilih Bintang Interaktif */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Rating Bintang</label>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReviewRating(star)}
+                      className="text-2xl cursor-pointer transition-transform hover:scale-110"
+                    >
+                      {star <= reviewRating ? '⭐' : '☆'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Kotak Komentar */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1.5">Komentar / Ulasan Lu</label>
+                <textarea
+                  required
+                  rows="3"
+                  placeholder="Tulis ulasan jujur lu bray, misal: Tempatnya gokil parah, turnya asik!"
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-800 focus:outline-none focus:border-[#0194f3]"
+                />
+              </div>
+
+              {/* Tombol Action */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsReviewModalOpen(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold py-3 rounded-xl cursor-pointer transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingReview}
+                  className="flex-1 bg-[#0194f3] hover:bg-blue-600 disabled:bg-blue-300 text-white text-xs font-bold py-3 rounded-xl cursor-pointer transition-colors"
+                >
+                  {isSubmittingReview ? 'Mengirim...' : 'Kirim Ulasan 🚀'}
+                </button>
+              </div>
             </form>
           </div>
         </div>

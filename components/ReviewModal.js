@@ -1,24 +1,17 @@
 'use client'
 import React from 'react'
 
-const DUMMY_REVIEWS = {
-  1: [
-    { id: 1, name: "Andi Wijaya", rating: 5, comment: "Indah banget sunrisenya! Dingin parah tapi worth it. Sangat direkomendasikan!", date: "2 minggu lalu" },
-    { id: 2, name: "Siti Rahma", rating: 4, comment: "Pemandangannya juara, cuma pas ke sana agak ramai aja. Jasa jeep-nya ramah.", date: "1 bulan lalu" }
-  ],
-  2: [
-    { id: 3, name: "Budi Santoso", rating: 5, comment: "Tempat yang magis, megah banget Borobudur. Bersih dan tertata rapi.", date: "3 hari lalu" },
-    { id: 4, name: "Dewi Lestari", rating: 5, comment: "Keren sejarahnya, wajib sewa pemandu biar paham cerita reliefnya.", date: "3 minggu lalu" }
-  ],
-  default: [
-    { id: 99, name: "Traveler Asik", rating: 5, comment: "Tempatnya bagus banget, bersih, pelayanannya ramah. Mantap pokoknya!", date: "Baru saja" }
-  ]
-};
-
 export default function ReviewModal({ selectedDestination, onClose, onBookNow }) {
   if (!selectedDestination) return null;
 
-  const reviews = DUMMY_REVIEWS[selectedDestination.id] || DUMMY_REVIEWS.default;
+  // Tarik data reviews murni dari objek destinasi bray
+  const reviews = selectedDestination.reviews || [];
+
+  // Hitung rating rata-rata secara dinamis berdasarkan database bray
+  const totalRating = reviews.reduce((sum, rev) => sum + rev.rating, 0);
+  const averageRating = reviews.length > 0 
+    ? (totalRating / reviews.length).toFixed(1) 
+    : 'New';
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -66,29 +59,48 @@ export default function ReviewModal({ selectedDestination, onClose, onBookNow })
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-sm sm:text-base text-slate-800">Ulasan Pengunjung</h3>
             <span className="text-xs font-bold text-amber-500 flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-full">
-              ⭐ 4.8 <span className="text-slate-400 font-normal">({reviews.length} Ulasan)</span>
+              ⭐ {averageRating} <span className="text-slate-400 font-normal">({reviews.length} Ulasan)</span>
             </span>
           </div>
 
           {/* List Review */}
           <div className="space-y-3">
-            {reviews.map((rev) => (
-              <div key={rev.id} className="bg-slate-50/70 p-3 sm:p-4 rounded-2xl border border-slate-100">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-700">{rev.name}</span>
-                  <span className="text-[10px] text-slate-400">{rev.date}</span>
-                </div>
-                <div className="flex gap-0.5 my-1">
-                  {[...Array(5)].map((_, i) => (
-                    <span key={i} className={`text-xs ${i < rev.rating ? 'text-amber-400' : 'text-slate-200'}`}>★</span>
-                  ))}
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed mt-0.5">"{rev.comment}"</p>
+            {reviews.length > 0 ? (
+              reviews.map((rev, index) => {
+                // TRICK AMPUH: Dipaksa convert ke string biar ulasan "gokill brayy" lu gak ke-skip
+                const teksKomentar = rev.comment ? String(rev.comment).trim() : '';
+
+                return (
+                  <div key={rev.id || index} className="bg-slate-50/70 p-3 sm:p-4 rounded-2xl border border-slate-100">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-700">
+                        {rev.user_email || 'Pengguna TravelKu'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {rev.created_at ? new Date(rev.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Baru saja'}
+                      </span>
+                    </div>
+                    
+                    <div className="flex gap-0.5 my-1">
+                      {[...Array(5)].map((_, i) => (
+                        <span key={i} className={`text-xs ${i < rev.rating ? 'text-amber-400' : 'text-slate-200'}`}>★</span>
+                      ))}
+                    </div>
+                    
+                    <p className="text-xs text-slate-600 leading-relaxed mt-0.5">
+                      &quot;{teksKomentar || 'Memberikan rating tanpa komentar.'}&quot;
+                    </p>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                <p className="text-xs font-bold text-slate-400">Belum ada ulasan untuk tempat ini bray.</p>
               </div>
-            ))}
+            )}
           </div>
 
-          {/* ACTION BOTTOM BAR */}
+          {/* ACTION BOTTOM BAR (STICKY FOOTER) */}
           <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between sticky bottom-0 bg-white">
             <div>
               <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Harga per tiket</p>
@@ -99,8 +111,8 @@ export default function ReviewModal({ selectedDestination, onClose, onBookNow })
             
             <button 
               onClick={() => {
-                onClose(); // Tutup modal ulasan
-                onBookNow(selectedDestination); // Oper destinasi ke form booking bawaan lu
+                onClose();
+                onBookNow(selectedDestination);
               }}
               className="bg-[#0194f3] hover:bg-[#017ccb] text-white px-5 py-2.5 sm:px-6 rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-200 transition-all cursor-pointer"
             >
