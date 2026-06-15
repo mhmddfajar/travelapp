@@ -31,7 +31,7 @@ export default function LoginPage() {
     if (error) {
       alert(error.message)
     } else if (mode === 'register') {
-      alert("Pendaftaran sukses! Silakan cek email kamu untuk konfirmasi.")
+      alert("Pendaftaran berhasil! Silahkan Login.")
       setMode('login')
     } else {
       router.push('/')
