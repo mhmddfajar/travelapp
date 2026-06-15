@@ -508,9 +508,25 @@ export default function HomePage() {
                     type="number"
                     min="1"
                     required
-                    value={totalTickets}
-                    onChange={(e) => setTotalTickets(parseInt(e.target.value) || 1)}
-                    className="w-full bg-white border border-slate-300 text-slate-800 rounded-xl p-3.5 focus:ring-2 focus:ring-[#0194f3] focus:border-[#0194f3] outline-none transition-all text-sm"
+                    // Jika nilai state adalah 0 atau kosong, biarkan input menampilkan string kosong
+                    value={totalTickets === 0 ? '' : totalTickets}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setTotalTickets(0); // Set ke 0 sementara agar input bisa dikosongkan saat diketik
+                      } else {
+                        const parsed = parseInt(val);
+                        if (parsed > 0) setTotalTickets(parsed);
+                      }
+                    }}
+                    onBlur={() => {
+                      // Jika pengguna meninggalkan input dalam keadaan kosong, kembalikan ke minimal 1
+                      if (!totalTickets || totalTickets < 1) {
+                        setTotalTickets(1);
+                      }
+                    }}
+                    // Menambahkan class kustom 'no-spinner' untuk menghilangkan panah di desktop
+                    className="w-full bg-white border border-slate-300 text-slate-800 rounded-xl p-3.5 focus:ring-2 focus:ring-[#0194f3] focus:border-[#0194f3] outline-none transition-all text-sm no-spinner"
                   />
                 </div>
 
